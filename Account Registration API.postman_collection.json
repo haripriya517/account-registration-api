@@ -1,0 +1,434 @@
+{
+	"info": {
+		"_postman_id": "e88ff3ad-d918-41e9-a225-08b36dff71d5",
+		"name": "Account Registration API - Minimal Examples",
+		"description": "Minimal request examples for each endpoint in Account Registration API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "9672279"
+	},
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"health"
+							]
+						},
+						"description": "Check application health status"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Account Types",
+			"item": [
+				{
+					"name": "Get All Account Types",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/account-types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"account-types"
+							]
+						},
+						"description": "Get list of all available account types"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Account Registration",
+			"item": [
+				{
+					"name": "Register New Account",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "request",
+									"value": "{\"name\":\"Haripriya\",\"dateOfBirth\":\"15-05-1990\",\"address\":{\"streetName\":\"Main Street\",\"houseNumber\":\"123\",\"postCode\":\"1234 AB\",\"city\":\"Amsterdam\"},\"accountType\":\"SAVINGS\"}",
+									"contentType": "application/json",
+									"type": "text"
+								},
+								{
+									"key": "idDocument",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/accounts/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"accounts",
+								"register"
+							]
+						},
+						"description": "Register a new account with mandatory fields only"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Draft (via Register)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "request",
+									"value": "{\"name\":\"Haripriya\",\"dateOfBirth\":\"20-08-1985\",\"address\":{\"streetName\":\"Keizersgracht\",\"houseNumber\":\"45B\",\"postCode\":\"1015 AB\",\"city\":\"Amsterdam\"},\"accountType\":\"CURRENT\"}",
+									"contentType": "application/json",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/accounts/register?requestId={{draftRequestId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"accounts",
+								"register"
+							],
+							"query": [
+								{
+									"key": "requestId",
+									"value": "{{draftRequestId}}",
+									"description": "Request ID from saved draft"
+								}
+							]
+						},
+						"description": "Submit an existing draft using the register endpoint with requestId parameter"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Draft Operations",
+			"item": [
+				{
+					"name": "Save as Draft",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "request",
+									"value": "{\"name\":\"Haripriya\",\"dateOfBirth\":\"10-12-1992\",\"address\":{\"streetName\":\"Canal Street\",\"houseNumber\":\"99\",\"postCode\":\"5678 CD\",\"city\":\"Rotterdam\"}}",
+									"contentType": "application/json",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/accounts/draft",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"accounts",
+								"draft"
+							]
+						},
+						"description": "Save registration as draft with minimal required fields (name, DOB, address)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Draft",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "request",
+									"value": "{\"name\":\"Haripriya Updated\",\"dateOfBirth\":\"10-12-1992\",\"address\":{\"streetName\":\"Canal Street\",\"houseNumber\":\"100\",\"postCode\":\"5678 CD\",\"city\":\"Rotterdam\"},\"accountType\":\"SAVINGS\"}",
+									"contentType": "application/json",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/accounts/{{draftRequestId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"accounts",
+								"{{draftRequestId}}"
+							]
+						},
+						"description": "Update an existing draft"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Account by Request ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/accounts/{{requestId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"accounts",
+								"{{requestId}}"
+							]
+						},
+						"description": "Retrieve account details by request ID"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Field Validation",
+			"item": [
+				{
+					"name": "Validate Name",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fieldName\": \"name\",\n    \"fieldValue\": \"Haripriya\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/validation/name",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"validation",
+								"name"
+							]
+						},
+						"description": "Validate name field"
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Date of Birth",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fieldName\": \"dateOfBirth\",\n    \"fieldValue\": \"15-05-1990\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/validation/dateOfBirth",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"validation",
+								"dateOfBirth"
+							]
+						},
+						"description": "Validate date of birth (format: DD-MM-YYYY)"
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Street Name",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fieldName\": \"streetName\",\n    \"fieldValue\": \"Main Street\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/validation/streetName",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"validation",
+								"streetName"
+							]
+						},
+						"description": "Validate street name"
+					},
+					"response": []
+				},
+				{
+					"name": "Validate House Number",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fieldName\": \"houseNumber\",\n    \"fieldValue\": \"123A\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/validation/houseNumber",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"validation",
+								"houseNumber"
+							]
+						},
+						"description": "Validate house number"
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Post Code",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fieldName\": \"postCode\",\n    \"fieldValue\": \"1234 AB\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/validation/postCode",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"validation",
+								"postCode"
+							]
+						},
+						"description": "Validate Dutch post code (format: 1234 AB)"
+					},
+					"response": []
+				},
+				{
+					"name": "Validate City",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fieldName\": \"city\",\n    \"fieldValue\": \"Amsterdam\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/validation/city",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"validation",
+								"city"
+							]
+						},
+						"description": "Validate city name"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "requestId",
+			"value": "AB2K-0590",
+			"type": "string"
+		},
+		{
+			"key": "draftRequestId",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

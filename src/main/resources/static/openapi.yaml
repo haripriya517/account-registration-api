@@ -1,0 +1,708 @@
+openapi: 3.1.0
+info:
+  title: Account Registration API
+  description: |
+    API for customer account registration with draft/pause functionality. 
+    All endpoints are versioned with v1 for backward compatibility and future API evolution.
+    
+    **Features:**
+    - Combined registration endpoint (new account OR submit draft)
+    - Account registration with full validation
+    - Draft functionality (pause/resume registration)
+    - Document reuse when submitting drafts
+    - Field-level validation for real-time feedback
+    - File upload for ID documents (stored on filesystem)
+    - Multiple account types support (SAVINGS, CURRENT, INVESTMENT)
+    - Request ID format: XXXX-MMYY (4 random readable chars + month-year from DOB, e.g., AB2K-0590)
+    
+    **Key Endpoints:**
+    - `POST /api/v1/accounts/register` - Create new account OR submit draft (with optional requestId)
+    - `POST /api/v1/accounts/draft` - Save as draft
+    - `PUT /api/v1/accounts/{requestId}` - Update draft
+    - `GET /api/v1/accounts/{requestId}` - Get account details
+    - `POST /api/v1/validation/*` - Real-time field validation
+  version: 1.0.0
+  contact:
+    name: Account API Support
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /api/v1/health:
+    get:
+      summary: Health check
+      description: Returns the health status of the application.
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Application is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: UP
+
+  /api/v1/account-types:
+    get:
+      summary: Get all account types
+      description: Retrieve all available account types from AccountType enum.
+      operationId: getAllAccountTypes
+      tags:
+        - Account Type
+      responses:
+        '200':
+          description: List of available account types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountType'
+              example:
+                - SAVINGS
+                - CURRENT
+                - INVESTMENT
+
+  /api/v1/accounts/register:
+    post:
+      summary: Register new account OR submit existing draft
+      description: |
+        **Combined endpoint that handles both new registration and draft submission.**
+        
+        **New Registration (without requestId parameter):**
+        - Creates a new account with full validation and ID document upload
+        - Returns HTTP 201 Created
+        - All mandatory fields required: name, dateOfBirth, address, accountType, idDocument
+        - Optional fields: startingBalance, email, monthlySalary, interestedInOtherProducts
+        
+        **Submit Draft (with requestId query parameter):**
+        - Retrieves existing draft from database by requestId
+        - Updates all fields and changes status to SUBMITTED
+        - Returns HTTP 200 OK
+        - ID document is optional if already uploaded during draft creation
+        - Reuses existing document if no new document provided
+        
+        The 'request' part should contain JSON string with AccountRequestDTO.
+      operationId: registerOrSubmit
+      tags:
+        - Account
+      parameters:
+        - name: requestId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            Optional request ID for submitting an existing draft.
+            Format: XXXX-MMYY (4 random chars + month-year from DOB, e.g., AB2K-0590 for May 1990)
+            - If provided: submits existing draft
+            - If not provided: creates new registration
+          example: "AB2K-0590"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - request
+              properties:
+                request:
+                  type: string
+                  description: JSON string containing AccountRequestDTO
+                  example: '{"name":"Priya","dateOfBirth":"15-05-1990","address":{"streetName":"Hoofdstraat","houseNumber":"123A","postCode":"1234 AB","city":"Amsterdam"},"accountType":"SAVINGS","startingBalance":1000.00,"email":"priya@example.com","monthlySalary":5000.00,"interestedInOtherProducts":true}'
+                idDocument:
+                  type: string
+                  format: binary
+                  description: |
+                    ID document file (image or PDF, max 10MB)
+                    - Mandatory for new registration
+                    - Optional for draft submission if already uploaded
+            encoding:
+              request:
+                contentType: application/json
+      responses:
+        '201':
+          description: New account registered successfully (when requestId not provided)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponseDTO'
+        '200':
+          description: Draft submitted successfully (when requestId provided)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponseDTO'
+        '400':
+          description: Validation failed, missing required fields, or request already submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '404':
+          description: Draft not found (when requestId provided but doesn't exist)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/accounts/draft:
+    post:
+      summary: Save as draft
+      description: |
+        Save registration as draft (pause registration process). 
+        Requires only name, date of birth, and address validation. 
+        ID document and account type are optional for draft.
+        The 'request' part should contain JSON string with DraftRequestDTO.
+      operationId: saveDraft
+      tags:
+        - Account
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - request
+              properties:
+                request:
+                  type: string
+                  description: JSON string containing DraftRequestDTO
+                  example: '{"name":"Priya","dateOfBirth":"15-05-1990","address":{"streetName":"Hoofdstraat","houseNumber":"123A","postCode":"1234 AB","city":"Amsterdam"}}'
+                idDocument:
+                  type: string
+                  format: binary
+                  description: ID document file (optional for draft)
+            encoding:
+              request:
+                contentType: application/json
+      responses:
+        '201':
+          description: Draft saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponseDTO'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+  /api/v1/accounts/{requestId}:
+    get:
+      summary: Get account request by ID
+      description: Retrieve account request details by request ID.
+      operationId: getByRequestId
+      tags:
+        - Account
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The request ID (format XXXX-MMYY where XXXX = 4 random readable chars, MMYY = month-year from DOB, e.g., AB2K-0590 for May 1990)
+          example: "AB2K-0590"
+      responses:
+        '200':
+          description: Account request found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponseDTO'
+        '404':
+          description: Account request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update existing draft
+      description: |
+        Update an existing draft with validation (resume registration). 
+        The 'request' part should contain JSON string with AccountRequestDTO.
+        Cannot update a request that has already been submitted.
+      operationId: updateDraft
+      tags:
+        - Account
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The request ID (format XXXX-MMYY where XXXX = 4 random readable chars, MMYY = month-year from DOB, e.g., AB2K-0590 for May 1990)
+          example: "AB2K-0590"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - request
+              properties:
+                request:
+                  type: string
+                  description: JSON string containing AccountRequestDTO
+                  example: '{"name":"Priya","dateOfBirth":"15-05-1990","address":{"streetName":"Hoofdstraat","houseNumber":"123A","postCode":"1234 AB","city":"Amsterdam"},"accountType":"SAVINGS"}'
+                idDocument:
+                  type: string
+                  format: binary
+                  description: ID document file (optional if already uploaded)
+            encoding:
+              request:
+                contentType: application/json
+      responses:
+        '200':
+          description: Draft updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponseDTO'
+        '400':
+          description: Validation failed or request already submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '404':
+          description: Account request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/validation/name:
+    post:
+      summary: Validate name field
+      description: Validate name field value. Name is mandatory and cannot be blank.
+      operationId: validateName
+      tags:
+        - Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldValidationRequest'
+            example:
+              fieldName: "name"
+              fieldValue: "Priya"
+      responses:
+        '200':
+          description: Field validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldValidationResponse'
+
+  /api/v1/validation/dateOfBirth:
+    post:
+      summary: Validate date of birth field
+      description: Validate date of birth field value. Must be in DD-MM-YYYY format and must be a past date.
+      operationId: validateDateOfBirth
+      tags:
+        - Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldValidationRequest'
+            example:
+              fieldName: "dateOfBirth"
+              fieldValue: "15-05-1990"
+      responses:
+        '200':
+          description: Field validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldValidationResponse'
+
+  /api/v1/validation/streetName:
+    post:
+      summary: Validate street name field
+      description: Validate street name field value. Street name is mandatory and cannot be blank.
+      operationId: validateStreetName
+      tags:
+        - Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldValidationRequest'
+            example:
+              fieldName: "streetName"
+              fieldValue: "Hoofdstraat"
+      responses:
+        '200':
+          description: Field validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldValidationResponse'
+
+  /api/v1/validation/houseNumber:
+    post:
+      summary: Validate house number field
+      description: Validate Dutch house number field value. Must follow Dutch format (e.g., 123, 45A, 7-1, 123-bis).
+      operationId: validateHouseNumber
+      tags:
+        - Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldValidationRequest'
+            example:
+              fieldName: "houseNumber"
+              fieldValue: "123A"
+      responses:
+        '200':
+          description: Field validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldValidationResponse'
+
+  /api/v1/validation/postCode:
+    post:
+      summary: Validate post code field
+      description: Validate Dutch post code field value. Must be 4 digits followed by space and 2 letters (e.g., 1234 AB).
+      operationId: validatePostCode
+      tags:
+        - Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldValidationRequest'
+            example:
+              fieldName: "postCode"
+              fieldValue: "1234 AB"
+      responses:
+        '200':
+          description: Field validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldValidationResponse'
+
+  /api/v1/validation/city:
+    post:
+      summary: Validate city field
+      description: Validate city field value. City is mandatory and cannot be blank.
+      operationId: validateCity
+      tags:
+        - Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldValidationRequest'
+            example:
+              fieldName: "city"
+              fieldValue: "Amsterdam"
+      responses:
+        '200':
+          description: Field validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldValidationResponse'
+
+components:
+  schemas:
+    AccountRequestDTO:
+      type: object
+      required:
+        - name
+        - dateOfBirth
+        - address
+        - accountType
+      properties:
+        name:
+          type: string
+          description: Customer name (mandatory)
+          example: Priya
+        dateOfBirth:
+          type: string
+          description: "Date of birth in DD-MM-YYYY format (mandatory)"
+          pattern: "^[0-9]{2}-[0-9]{2}-[0-9]{4}$"
+          example: "15-05-1990"
+        address:
+          $ref: '#/components/schemas/AddressDTO'
+        accountType:
+          type: string
+          description: Account type (mandatory for register)
+          enum:
+            - SAVINGS
+            - CURRENT
+            - INVESTMENT
+          example: SAVINGS
+        startingBalance:
+          type: number
+          format: decimal
+          description: "Starting balance for the account (optional, must be >= 0)"
+          example: 1000.00
+        email:
+          type: string
+          format: email
+          description: "Customer email address (optional, must be valid email format)"
+          example: priya@example.com
+        monthlySalary:
+          type: number
+          format: decimal
+          description: "Monthly salary in currency units (optional, must be >= 0)"
+          example: 5000.00
+        interestedInOtherProducts:
+          type: boolean
+          description: "Interested in other products (optional - send as boolean true/false, backend serializes to Y/N in database)"
+          example: true
+
+    DraftRequestDTO:
+      type: object
+      required:
+        - name
+        - dateOfBirth
+        - address
+      properties:
+        name:
+          type: string
+          description: Customer name (mandatory for draft)
+          example: Priya
+        dateOfBirth:
+          type: string
+          description: "Date of birth in DD-MM-YYYY format (mandatory for draft)"
+          pattern: "^[0-9]{2}-[0-9]{2}-[0-9]{4}$"
+          example: "15-05-1990"
+        address:
+          $ref: '#/components/schemas/AddressDTO'
+        accountType:
+          type: string
+          description: Account type (optional for draft)
+          enum:
+            - SAVINGS
+            - CURRENT
+            - INVESTMENT
+        startingBalance:
+          type: number
+          format: decimal
+          description: "Starting balance for the account (optional, must be >= 0)"
+          example: 1000.00
+        email:
+          type: string
+          format: email
+          description: "Customer email address (optional, must be valid email format)"
+          example: priya@example.com
+        monthlySalary:
+          type: number
+          format: decimal
+          description: "Monthly salary in currency units (optional, must be >= 0)"
+          example: 5000.00
+        interestedInOtherProducts:
+          type: boolean
+          description: "Interested in other products (optional - send as boolean true/false, backend serializes to Y/N in database)"
+          example: true
+
+    AccountResponseDTO:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: Unique request identifier (format XXXX-MMYY where XXXX = 4 random readable chars, MMYY = month-year from DOB)
+          example: "AB2K-0590"
+        name:
+          type: string
+          description: Customer name
+          example: Priya
+        dateOfBirth:
+          type: string
+          description: "Date of birth in DD-MM-YYYY format"
+          example: "15-05-1990"
+        idDocument:
+          $ref: '#/components/schemas/IdDocumentResponseDTO'
+        address:
+          $ref: '#/components/schemas/AddressDTO'
+        accountType:
+          type: string
+          enum:
+            - SAVINGS
+            - CURRENT
+            - INVESTMENT
+          description: The selected account type
+          example: SAVINGS
+        startingBalance:
+          type: number
+          format: decimal
+          description: "Starting balance for the account"
+          example: 1000.00
+        email:
+          type: string
+          format: email
+          description: "Customer email address"
+          example: priya@example.com
+        monthlySalary:
+          type: number
+          format: decimal
+          description: "Monthly salary in currency units"
+          example: 5000.00
+        interestedInOtherProducts:
+          type: string
+          description: "Interest in other products (Y/N - serialized from boolean true/false)"
+          enum:
+            - "Y"
+            - "N"
+          example: "Y"
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - SUBMITTED
+          description: Status of the account request
+          example: SUBMITTED
+
+    FieldValidationRequest:
+      type: object
+      required:
+        - fieldName
+        - fieldValue
+      properties:
+        fieldName:
+          type: string
+          description: Name of the field to validate
+          example: name
+        fieldValue:
+          type: string
+          description: Value of the field to validate
+          example: Priya
+
+    FieldValidationResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          description: Whether the field value is valid
+          example: true
+        message:
+          type: string
+          description: Validation message
+          example: Valid
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the error
+          example: "2026-02-15T10:30:00"
+        status:
+          type: integer
+          description: HTTP status code
+          example: 400
+        error:
+          type: string
+          description: Error type
+          example: Validation Failed
+        fieldErrors:
+          type: object
+          additionalProperties:
+            type: string
+          description: Map of field names to error messages
+          example:
+            name: "Name is mandatory"
+            postCode: "Post code must be 4 digits followed by space and 2 alphabets (e.g., 1234 AB)"
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the error
+          example: "2026-02-15T10:30:00"
+        status:
+          type: integer
+          description: HTTP status code
+          example: 404
+        error:
+          type: string
+          description: Error type
+          example: Not Found
+        message:
+          type: string
+          description: Error message
+          example: "Account request not found with id: AB2K-0590"
+
+    AddressDTO:
+      type: object
+      required:
+        - streetName
+        - houseNumber
+        - postCode
+        - city
+      properties:
+        streetName:
+          type: string
+          description: Street name
+          example: Hoofdstraat
+        houseNumber:
+          type: string
+          description: "Dutch house number (e.g., 123, 45A, 7-1, 123-bis)"
+          pattern: "^[1-9][0-9]{0,4}([A-Za-z])?(-[A-Za-z0-9]+)?$"
+          example: "123A"
+        postCode:
+          type: string
+          description: "Dutch post code (4 digits + space + 2 letters)"
+          pattern: "^[0-9]{4}\\s[A-Za-z]{2}$"
+          example: "1234 AB"
+        city:
+          type: string
+          description: City name
+          example: Amsterdam
+
+    IdDocumentResponseDTO:
+      type: object
+      properties:
+        documentName:
+          type: string
+          description: Original file name
+          example: passport.jpg
+        documentType:
+          type: string
+          description: MIME type of the document
+          example: image/jpeg
+        documentSize:
+          type: integer
+          format: int64
+          description: File size in bytes
+          example: 102400
+
+    AccountType:
+      type: string
+      description: Available account types
+      enum:
+        - SAVINGS
+        - CURRENT
+        - INVESTMENT
+      example: SAVINGS
+
