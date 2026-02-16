@@ -39,6 +39,21 @@ Backend APIs for customer account registration with:
 - Bean Validation (Jakarta)
 - SpringDoc OpenAPI
 
+## Requirements to run the application
+- Java 17
+- Maven 3.9+
+- Docker & Docker Compose
+
+
+## Run the app in Docker
+
+```zsh
+# Clean start (removes old data)
+docker compose down -v
+docker compose up --build
+```
+
+
 ## API Endpoints
 
 ### Health Endpoint
@@ -73,19 +88,6 @@ Real-time field validation endpoints for frontend integration. All endpoints acc
 |--------|----------|-------------|
 | GET | `/api/v1/account-types` | Get all available account types |
 
-## Requirements to run the application
-- Java 17
-- Maven 3.9+
-- Docker & Docker Compose
-
-
-## Run the app in Docker
-
-```zsh
-# Clean start (removes old data)
-docker compose down -v
-docker compose up --build
-```
 
 
 ## API Documentation
